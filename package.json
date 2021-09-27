@@ -10,6 +10,14 @@
     "type": "git",
     "url": "https://git.heroku.com/standuptall.git"
   },
+  "dependencies": {
+    "ejs": "^3.1.5",
+    "express": "^4.15.2"
+  },
+  "devDependencies": {
+    "got": "^11.3.0",
+    "tape": "^4.7.0"
+  },
   "author": "Alberto Zichittella",
   "license": "ISC"
 }
