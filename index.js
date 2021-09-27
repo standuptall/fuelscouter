@@ -1,6 +1,6 @@
 const http = require('http');
 
-const hostname = 'https://standuptall.herokuapp.com/';
+const hostname = '127.0.0.1';
 const port = 443;
 
 const server = http.createServer((req, res) => {
