@@ -28,19 +28,24 @@ express()
   .get('/', (req, res) => res.render('pages/index'))
   .get('/rifornimenti',async (request, response) => {
     try{
-      const data = await getAll();
+      const data = await getAll(request.query.province,request.query.region);
+      response.set('Access-Control-Allow-Origin', '*');
+      response.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+      response.set('Access-Control-Allow-Headers', '*');
+      response.set('Access-Control-Allow-Credentials', true);
       response.send(data);
     }
-    catch{
+    catch(error){
+      console.log(error)
       response.send("Cannot send request");
     }
   })
   .listen(PORT, () => console.log(`Listening on ${ PORT }`))
 
-function getAll(){
+function getAll(province,region){
 
   return new Promise((resolve, reject) => {
-    const data = "province=PV&region=19";
+    const data = `province=${province}&region=${region}`;
     const options = {
       hostname: 'carburanti.mise.gov.it',
       port: 443,
