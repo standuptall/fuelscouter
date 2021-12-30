@@ -57,6 +57,7 @@ shadowSize: [41, 41]
     function reload(){
       markers.forEach(c=>c.remove());
       markers = [];
+      document.getElementById("lista").innerHTML = "";
       fetch("rifornimenti?province="+province+"&region="+region,{
             method:"GET"
         }).then(async (response)=>
