@@ -712,7 +712,7 @@ shadowSize: [41, 41]
                         var data = JSON.parse(request.responseText);
                         var address = data.address;
                         window.region = regions.filter(c=>c.name.toLowerCase()==address.state.toLowerCase())[0].id;
-                        window.province = provinces.filter(c=>c.nome.toLowerCase()==address.county.toLowerCase())[0].sigla;
+                        window.province = provinces.filter(c=>address.county.toLowerCase().includes(c.nome.toLowerCase()))[0].sigla;
                         resolve(address);
                     }
                     else {
