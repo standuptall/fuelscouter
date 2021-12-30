@@ -37,7 +37,7 @@ shadowSize: [41, 41]
             longitude = position.coords.longitude;
             setProvinceAndRegion().then(()=>{
               loadMap();
-            raggioChanged();
+              raggioChanged();
               reload();
             });
         });
@@ -101,11 +101,11 @@ shadowSize: [41, 41]
             try
             {
                 return firstEl.carburanti.filter(c=>c.idCarb === 1 && c.isSelf === 1)[0].prezzo 
-                              >  
-                      secondEl.carburanti.filter(c=>c.idCarb === 1 && c.isSelf === 1)[0].prezzo ? 1 : -1;
+                              <
+                      secondEl.carburanti.filter(c=>c.idCarb === 1 && c.isSelf === 1)[0].prezzo ? -1 : 1;
             }
             catch{
-                return -1;
+                return 1;
             }
          });
          //prendo i primi 20 più convenienti
