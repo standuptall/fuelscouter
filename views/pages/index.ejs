@@ -38,7 +38,6 @@ shadowSize: [41, 41]
             setProvinceAndRegion().then(()=>{
               loadMap();
               raggioChanged();
-              reload();
             });
         });
     } else {
@@ -94,7 +93,8 @@ shadowSize: [41, 41]
         });
     }
     function showTop20(data){
-        const dataoggi = "2021-12-30";
+        const d = new Date();
+        const dataoggi = d.toISOString().substring(0,10);
         data = data.filter(c=>c.dIns.startsWith(dataoggi));
         data = data.filter(c=>isMarkerInsideCircle(c.lat,c.lon));
          data =  data.sort((firstEl, secondEl) => { 
