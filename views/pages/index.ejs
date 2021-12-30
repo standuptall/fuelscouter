@@ -55,6 +55,7 @@ shadowSize: [41, 41]
         
     } 
     function reload(){
+      document.getElementById("loading").style = "display:block";
       markers.forEach(c=>c.remove());
       markers = [];
       document.getElementById("lista").innerHTML = "";
@@ -63,6 +64,7 @@ shadowSize: [41, 41]
         }).then(async (response)=>
         {
             
+          document.getElementById("loading").style = "display:none";
             await processStations(response,map);
         });
     }
@@ -725,6 +727,7 @@ shadowSize: [41, 41]
   };
 
 </SCRIPT>
+<h3 id="loading">Caricamento in corso...</h3>
 <div>
   <label>Raggio</label>
   <select id="raggio" value="10" onchange="raggioChanged(event)">
