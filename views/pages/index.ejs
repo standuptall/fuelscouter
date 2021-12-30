@@ -2,63 +2,749 @@
 <html>
 <head>
   <%- include ("../partials/header.ejs") %>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+        integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+        crossorigin=""/>
+        <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+        integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+        crossorigin=""></script>
 </head>
 
 <body>
 
   <%- include ("../partials/nav.ejs") %>
 
-<div class="jumbotron text-center">
-  <div class="container">
-    <a href="/" class="lang-logo">
-      <img src="/lang-logo.png">
-    </a>
-    <h1>Getting Started on Heroku with Node.js</h1>
-    <p>This is a sample Node application deployed to Heroku. It's a reasonably simple app - but a good foundation for understanding how to get the most out of the Heroku platform.</p>
-    <a type="button" class="btn btn-lg btn-default" href="https://devcenter.heroku.com/articles/getting-started-with-nodejs"><span class="glyphicon glyphicon-flash"></span> Getting Started on Heroku with Node.js</a>
-    <a type="button" class="btn btn-lg btn-primary" href="https://github.com/heroku/node-js-getting-started"><span class="glyphicon glyphicon-download"></span> Source on GitHub</a>
-  </div>
-</div>
-<div class="container">
-  <div class="alert alert-info text-center" role="alert">
-    To deploy your own copy, and learn the fundamentals of the Heroku platform, head over to the <a href="https://devcenter.heroku.com/articles/getting-started-with-nodejs" class="alert-link">Getting Started on Heroku with Node.js</a> tutorial.
-  </div>
-  <hr>
-  <div class="row">
-    <div class="col-md-6">
-      <h3><span class="glyphicon glyphicon-info-sign"></span> How this sample app works</h3>
-      <ul>
-        <li>This app was deployed to Heroku, either using Git or by using <a href="https://github.com/heroku/node-js-getting-started">Heroku Button</a> on the repository.</li>
+  <SCRIPT>
+    var latitude=0;
+    var longitude = 0;
+    var raggio = 10;
+    var province = "";
+    var region = "";
+    var radiusLayer = L.circle([latitude,longitude], {radius: raggio*1000});
+    var map = null;
+    var markers = [];
+    var greenIcon = new L.Icon({
+iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+iconSize: [25, 41],
+iconAnchor: [12, 41],
+popupAnchor: [1, -34],
+shadowSize: [41, 41]
+});
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(position=>{
+            latitude = position.coords.latitude;
+            longitude = position.coords.longitude;
+            raggioChanged();
+            setProvinceAndRegion().then(()=>reload());
+        });
+    } else {
+        x.innerHTML = "Geolocation is not supported by this browser.";
+    }
+    window.onload=function(){
+        map = L.map('map').setView([45, 9], 10);
+        L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+            maxZoom: 18,
+            id: 'mapbox/streets-v11',
+            tileSize: 512,
+            zoomOffset: -1,
+            accessToken: 'pk.eyJ1IjoiendpZWNrdGVsIiwiYSI6ImNreHJkdnRqZDFiNmMyb29lY3NiaGZydjYifQ.JnZETT6cQm8tSRqTwSz27g'
+        }).addTo(map);
+        raggioChanged();
+        
+    } 
+    function reload(){
+      markers.forEach(c=>c.remove());
+      markers = [];
+      fetch("rifornimenti?province="+province+"&region="+region,{
+            method:"GET"
+        }).then(async (response)=>
+        {
+            
+            await processStations(response,map);
+        });
+    }
+    async function processStations(response,map){
+        let data = await response.json();
+        const convenienti = showTop20(data.array);
+        let i = 0;
+        convenienti.forEach((element) => {
+            const prezzo = element.carburanti.filter(c=>c.idCarb === 1 && c.isSelf === 1)[0];
+            const label = prezzo ? ""+(i+1)+")"+ element.name + "- " +prezzo.prezzo  : "";
+            var marker = L.marker([element.lat, element.lon],{icon:greenIcon})
+            .bindTooltip(label, 
+            {
+                permanent: true, 
+                direction: 'right'
+            });
+            const elem = document.createElement("li");
+            elem.innerHTML = element.name + "(" +element.addr+ ")";
+            document.getElementById("lista").appendChild(elem);
+            markers.push(marker);
+            marker
+            .addTo(map);
+            i++;
+        });
+    }
+    function showTop20(data){
+        const dataoggi = "2021-12-30";
+        data = data.filter(c=>c.dIns.startsWith(dataoggi));
+        data = data.filter(c=>isMarkerInsideCircle(c.lat,c.lon));
+         data =  data.sort((firstEl, secondEl) => { 
+            try
+            {
+                return firstEl.carburanti.filter(c=>c.idCarb === 1 && c.isSelf === 1)[0].prezzo 
+                              >  
+                      secondEl.carburanti.filter(c=>c.idCarb === 1 && c.isSelf === 1)[0].prezzo ? 1 : -1;
+            }
+            catch{
+                return -1;
+            }
+         });
+         //prendo i primi 20 più convenienti
+         data = data.slice(0,20);
+         return data;
+    }
+    function isMarkerInsideCircle(x,y) {
+      
+        let distanza = Math.sqrt(Math.pow(x-latitude,2)+Math.pow(y-longitude,2))*100;
 
-        <li>When Heroku received the source code, it fetched all the dependencies in the <a href="https://github.com/heroku/node-js-getting-started/blob/main/package.json">package.json</a>, creating a deployable slug.</li>
-        <li>The platform then spins up a dyno, a lightweight container that provides an isolated environment in which the slug can be mounted and executed.</li>
-        <li>You can scale your app, manage it, and deploy over <a href="https://addons.heroku.com/">150 add-on services</a>, from the Dashboard or CLI.</li>
-      </ul>
-    </div>
-    <div class="col-md-6">
-      <h3><span class="glyphicon glyphicon-link"></span> Next Steps</h3>
-      <ul>
-        <li>If you are following the <a href="https://devcenter.heroku.com/articles/getting-started-with-nodejs">Getting Started</a> guide, then please head back to the tutorial and follow the next steps!</li>
-        <li>If you deployed this app by deploying the Heroku Button, then in a command line shell, run:</li>
-        <ul>
-          <li><code>git clone https://github.com/heroku/node-js-getting-started.git</code> - this will create a local copy of the source code for the app</li>
-          <li><code>cd node-js-getting-started</code> - change directory into the local source code repository</li>
-          <li><code>heroku git:remote -a &lt;your-app-name></code> - associate the Heroku app with the repository</li>
-          <li>You'll now be set up to run the app locally, or <a href="https://devcenter.heroku.com/articles/getting-started-with-nodejs#push-local-changes">deploy changes</a> to Heroku</li>
-        </ul>
-      </ul>
-      <h3><span class="glyphicon glyphicon-link"></span> Helpful Links</h3>
-      <ul>
-        <li><a href="https://www.heroku.com/home">Heroku</a></li>
-        <li><a href="https://devcenter.heroku.com/">Heroku Dev Center</a></li>
-        <li><a href="https://devcenter.heroku.com/articles/getting-started-with-nodejs">Getting Started on Heroku with Node.js</a></li>
-        <li><a href="https://devcenter.heroku.com/articles/deploying-nodejs">Deploying Node Apps on Heroku</a></li>
-      </ul>
-    </div>
-  </div> <!-- row -->
-   <div class="alert alert-info text-center" role="alert">
-    Please do work through the Getting Started guide, even if you do know how to build such an application.  The guide covers the basics of working with Heroku, and will familiarize you with all the concepts you need in order to build and deploy your own apps.
-  </div>
+        return distanza <= raggio;
+    };
+
+    function raggioChanged(event)
+    {
+      if (event){
+        raggio = event.target.value;
+      }
+      document.getElementById("raggio").value = raggio;
+      radiusLayer.remove();
+      radiusLayer = L.circle([latitude,longitude], {radius: raggio*1000});
+      radiusLayer.addTo(map);
+      reload();
+    }
+    function setProvinceAndRegion () {
+      const regions = [{id:2,name:'Abruzzo'},
+{id:3,name:'Basilicata'},
+{id:7,name:'Calabria'},
+{id:8,name:'Campania'},
+{id:14,name:'Emilia Romagna'},
+{id:15,name:'Friuli Venezia Giulia'},
+{id:9,name:'Lazio'},
+{id:18,name:'Liguria'},
+{id:19,name:'Lombardia'},
+{id:1,name:'Marche'},
+{id:4,name:'Molise'},
+{id:13,name:'Piemonte'},
+{id:6,name:'Puglia'},
+{id:10,name:'Sardegna'},
+{id:11,name:'Sicilia'},
+{id:12,name:'Toscana'},
+{id:5,name:'Trentino Alto Adige'},
+{id:20,name:'Umbria'},
+{id:16,name:'Valle d\'Aosta'},
+{id:17,name:'Veneto'}];
+      const provinces = [
+  {
+    nome: "Agrigento",
+    sigla: "AG",
+    regione: "Sicilia"
+  },
+  {
+    nome: "Alessandria",
+    sigla: "AL",
+    regione: "Piemonte"
+  },
+  {
+    nome: "Ancona",
+    sigla: "AN",
+    regione: "Marche"
+  },
+  {
+    nome: "Arezzo",
+    sigla: "AR",
+    regione: "Toscana"
+  },
+  {
+    nome: "Ascoli Piceno",
+    sigla: "AP",
+    regione: "Marche"
+  },
+  {
+    nome: "Asti",
+    sigla: "AT",
+    regione: "Piemonte"
+  },
+  {
+    nome: "Avellino",
+    sigla: "AV",
+    regione: "Campania"
+  },
+  {
+    nome: "Bari",
+    sigla: "BA",
+    regione: "Puglia"
+  },
+  {
+    nome: "Barletta-Andria-Trani",
+    sigla: "BT",
+    regione: "Puglia"
+  },
+  {
+    nome: "Belluno",
+    sigla: "BL",
+    regione: "Veneto"
+  },
+  {
+    nome: "Benevento",
+    sigla: "BN",
+    regione: "Campania"
+  },
+  {
+    nome: "Bergamo",
+    sigla: "BG",
+    regione: "Lombardia"
+  },
+  {
+    nome: "Biella",
+    sigla: "BI",
+    regione: "Piemonte"
+  },
+  {
+    nome: "Bologna",
+    sigla: "BO",
+    regione: "Emilia-Romagna"
+  },
+  {
+    nome: "Bolzano/Bozen",
+    sigla: "BZ",
+    regione: "Trentino-Alto Adige/Südtirol"
+  },
+  {
+    nome: "Brescia",
+    sigla: "BS",
+    regione: "Lombardia"
+  },
+  {
+    nome: "Brindisi",
+    sigla: "BR",
+    regione: "Puglia"
+  },
+  {
+    nome: "Cagliari",
+    sigla: "CA",
+    regione: "Sardegna"
+  },
+  {
+    nome: "Caltanissetta",
+    sigla: "CL",
+    regione: "Sicilia"
+  },
+  {
+    nome: "Campobasso",
+    sigla: "CB",
+    regione: "Molise"
+  },
+  {
+    nome: "Carbonia-Iglesias",
+    sigla: "CI",
+    regione: "Sardegna"
+  },
+  {
+    nome: "Caserta",
+    sigla: "CE",
+    regione: "Campania"
+  },
+  {
+    nome: "Catania",
+    sigla: "CT",
+    regione: "Sicilia"
+  },
+  {
+    nome: "Catanzaro",
+    sigla: "CZ",
+    regione: "Calabria"
+  },
+  {
+    nome: "Chieti",
+    sigla: "CH",
+    regione: "Abruzzo"
+  },
+  {
+    nome: "Como",
+    sigla: "CO",
+    regione: "Lombardia"
+  },
+  {
+    nome: "Cosenza",
+    sigla: "CS",
+    regione: "Calabria"
+  },
+  {
+    nome: "Cremona",
+    sigla: "CR",
+    regione: "Lombardia"
+  },
+  {
+    nome: "Crotone",
+    sigla: "KR",
+    regione: "Calabria"
+  },
+  {
+    nome: "Cuneo",
+    sigla: "CN",
+    regione: "Piemonte"
+  },
+  {
+    nome: "Enna",
+    sigla: "EN",
+    regione: "Sicilia"
+  },
+  {
+    nome: "Fermo",
+    sigla: "FM",
+    regione: "Marche"
+  },
+  {
+    nome: "Ferrara",
+    sigla: "FE",
+    regione: "Emilia-Romagna"
+  },
+  {
+    nome: "Firenze",
+    sigla: "FI",
+    regione: "Toscana"
+  },
+  {
+    nome: "Foggia",
+    sigla: "FG",
+    regione: "Puglia"
+  },
+  {
+    nome: "Forlì-Cesena",
+    sigla: "FC",
+    regione: "Emilia-Romagna"
+  },
+  {
+    nome: "Frosinone",
+    sigla: "FR",
+    regione: "Lazio"
+  },
+  {
+    nome: "Genova",
+    sigla: "GE",
+    regione: "Liguria"
+  },
+  {
+    nome: "Gorizia",
+    sigla: "GO",
+    regione: "Friuli-Venezia Giulia"
+  },
+  {
+    nome: "Grosseto",
+    sigla: "GR",
+    regione: "Toscana"
+  },
+  {
+    nome: "Imperia",
+    sigla: "IM",
+    regione: "Liguria"
+  },
+  {
+    nome: "Isernia",
+    sigla: "IS",
+    regione: "Molise"
+  },
+  {
+    nome: "L'Aquila",
+    sigla: "AQ",
+    regione: "Abruzzo"
+  },
+  {
+    nome: "La Spezia",
+    sigla: "SP",
+    regione: "Liguria"
+  },
+  {
+    nome: "Latina",
+    sigla: "LT",
+    regione: "Lazio"
+  },
+  {
+    nome: "Lecce",
+    sigla: "LE",
+    regione: "Puglia"
+  },
+  {
+    nome: "Lecco",
+    sigla: "LC",
+    regione: "Lombardia"
+  },
+  {
+    nome: "Livorno",
+    sigla: "LI",
+    regione: "Toscana"
+  },
+  {
+    nome: "Lodi",
+    sigla: "LO",
+    regione: "Lombardia"
+  },
+  {
+    nome: "Lucca",
+    sigla: "LU",
+    regione: "Toscana"
+  },
+  {
+    nome: "Macerata",
+    sigla: "MC",
+    regione: "Marche"
+  },
+  {
+    nome: "Mantova",
+    sigla: "MN",
+    regione: "Lombardia"
+  },
+  {
+    nome: "Massa-Carrara",
+    sigla: "MS",
+    regione: "Toscana"
+  },
+  {
+    nome: "Matera",
+    sigla: "MT",
+    regione: "Basilicata"
+  },
+  {
+    nome: "Medio Campidano",
+    sigla: "VS",
+    regione: "Sardegna"
+  },
+  {
+    nome: "Messina",
+    sigla: "ME",
+    regione: "Sicilia"
+  },
+  {
+    nome: "Milano",
+    sigla: "MI",
+    regione: "Lombardia"
+  },
+  {
+    nome: "Modena",
+    sigla: "MO",
+    regione: "Emilia-Romagna"
+  },
+  {
+    nome: "Monza e della Brianza",
+    sigla: "MB",
+    regione: "Lombardia"
+  },
+  {
+    nome: "Napoli",
+    sigla: "NA",
+    regione: "Campania"
+  },
+  {
+    nome: "Novara",
+    sigla: "NO",
+    regione: "Piemonte"
+  },
+  {
+    nome: "Nuoro",
+    sigla: "NU",
+    regione: "Sardegna"
+  },
+  {
+    nome: "Ogliastra",
+    sigla: "OG",
+    regione: "Sardegna"
+  },
+  {
+    nome: "Olbia-Tempio",
+    sigla: "OT",
+    regione: "Sardegna"
+  },
+  {
+    nome: "Oristano",
+    sigla: "OR",
+    regione: "Sardegna"
+  },
+  {
+    nome: "Padova",
+    sigla: "PD",
+    regione: "Veneto"
+  },
+  {
+    nome: "Palermo",
+    sigla: "PA",
+    regione: "Sicilia"
+  },
+  {
+    nome: "Parma",
+    sigla: "PR",
+    regione: "Emilia-Romagna"
+  },
+  {
+    nome: "Pavia",
+    sigla: "PV",
+    regione: "Lombardia"
+  },
+  {
+    nome: "Perugia",
+    sigla: "PG",
+    regione: "Umbria"
+  },
+  {
+    nome: "Pesaro e Urbino",
+    sigla: "PU",
+    regione: "Marche"
+  },
+  {
+    nome: "Pescara",
+    sigla: "PE",
+    regione: "Abruzzo"
+  },
+  {
+    nome: "Piacenza",
+    sigla: "PC",
+    regione: "Emilia-Romagna"
+  },
+  {
+    nome: "Pisa",
+    sigla: "PI",
+    regione: "Toscana"
+  },
+  {
+    nome: "Pistoia",
+    sigla: "PT",
+    regione: "Toscana"
+  },
+  {
+    nome: "Pordenone",
+    sigla: "PN",
+    regione: "Friuli-Venezia Giulia"
+  },
+  {
+    nome: "Potenza",
+    sigla: "PZ",
+    regione: "Basilicata"
+  },
+  {
+    nome: "Prato",
+    sigla: "PO",
+    regione: "Toscana"
+  },
+  {
+    nome: "Ragusa",
+    sigla: "RG",
+    regione: "Sicilia"
+  },
+  {
+    nome: "Ravenna",
+    sigla: "RA",
+    regione: "Emilia-Romagna"
+  },
+  {
+    nome: "Reggio di Calabria",
+    sigla: "RC",
+    regione: "Calabria"
+  },
+  {
+    nome: "Reggio nell'Emilia",
+    sigla: "RE",
+    regione: "Emilia-Romagna"
+  },
+  {
+    nome: "Rieti",
+    sigla: "RI",
+    regione: "Lazio"
+  },
+  {
+    nome: "Rimini",
+    sigla: "RN",
+    regione: "Emilia-Romagna"
+  },
+  {
+    nome: "Roma",
+    sigla: "RM",
+    regione: "Lazio"
+  },
+  {
+    nome: "Rovigo",
+    sigla: "RO",
+    regione: "Veneto"
+  },
+  {
+    nome: "Salerno",
+    sigla: "SA",
+    regione: "Campania"
+  },
+  {
+    nome: "Sassari",
+    sigla: "SS",
+    regione: "Sardegna"
+  },
+  {
+    nome: "Savona",
+    sigla: "SV",
+    regione: "Liguria"
+  },
+  {
+    nome: "Siena",
+    sigla: "SI",
+    regione: "Toscana"
+  },
+  {
+    nome: "Siracusa",
+    sigla: "SR",
+    regione: "Sicilia"
+  },
+  {
+    nome: "Sondrio",
+    sigla: "SO",
+    regione: "Lombardia"
+  },
+  {
+    nome: "Taranto",
+    sigla: "TA",
+    regione: "Puglia"
+  },
+  {
+    nome: "Teramo",
+    sigla: "TE",
+    regione: "Abruzzo"
+  },
+  {
+    nome: "Terni",
+    sigla: "TR",
+    regione: "Umbria"
+  },
+  {
+    nome: "Torino",
+    sigla: "TO",
+    regione: "Piemonte"
+  },
+  {
+    nome: "Trapani",
+    sigla: "TP",
+    regione: "Sicilia"
+  },
+  {
+    nome: "Trento",
+    sigla: "TN",
+    regione: "Trentino-Alto Adige/Südtirol"
+  },
+  {
+    nome: "Treviso",
+    sigla: "TV",
+    regione: "Veneto"
+  },
+  {
+    nome: "Trieste",
+    sigla: "TS",
+    regione: "Friuli-Venezia Giulia"
+  },
+  {
+    nome: "Udine",
+    sigla: "UD",
+    regione: "Friuli-Venezia Giulia"
+  },
+  {
+    nome: "Valle d'Aosta/Vallée d'Aoste",
+    sigla: "AO",
+    regione: "Valle d'Aosta/Vallée d'Aoste"
+  },
+  {
+    nome: "Varese",
+    sigla: "VA",
+    regione: "Lombardia"
+  },
+  {
+    nome: "Venezia",
+    sigla: "VE",
+    regione: "Veneto"
+  },
+  {
+    nome: "Verbano-Cusio-Ossola",
+    sigla: "VB",
+    regione: "Piemonte"
+  },
+  {
+    nome: "Vercelli",
+    sigla: "VC",
+    regione: "Piemonte"
+  },
+  {
+    nome: "Verona",
+    sigla: "VR",
+    regione: "Veneto"
+  },
+  {
+    nome: "Vibo Valentia",
+    sigla: "VV",
+    regione: "Calabria"
+  },
+  {
+    nome: "Vicenza",
+    sigla: "VI",
+    regione: "Veneto"
+  },
+  {
+    nome: "Viterbo",
+    sigla: "VT",
+    regione: "Lazio"
+  }
+];
+      return new Promise(function (resolve, reject) {
+            var request = new XMLHttpRequest();
+
+            var method = 'GET';
+            var url = 'http://nominatim.openstreetmap.org/reverse?format=json&lat=' + latitude + '&lon=' + longitude + '&zoom=18&addressdetails=1';
+            var async = true;
+
+            request.open(method, url, async);
+            request.onreadystatechange = function () {
+                if (request.readyState == 4) {
+                    if (request.status == 200) {
+                        var data = JSON.parse(request.responseText);
+                        var address = data.address;
+                        window.region = regions.filter(c=>c.name.toLowerCase()==address.state.toLowerCase())[0].id;
+                        window.province = provinces.filter(c=>c.nome.toLowerCase()==address.county.toLowerCase())[0].sigla;
+                        resolve(address);
+                    }
+                    else {
+                        reject(request.status);
+                    }
+                }
+            };
+            request.send();
+        });
+  };
+
+</SCRIPT>
+<div>
+  <label>Raggio</label>
+  <select id="raggio" value="10" onchange="raggioChanged(event)">
+    <option value="5">5 Km</option>
+    <option value="10">10 Km</option>
+    <option value="15">15 Km</option>
+    <option value="20">20 Km</option>
+    <option value="25">25 Km</option>
+    <option value="30">30 Km</option>
+    <option value="35">35 Km</option>
+    <option value="40">40 Km</option>
+    <option value="45">45 Km</option>
+    <option value="50">50 Km</option>
+  </select>
+</div>
+<div>
+  <ol id="lista">
+
+  </ol>
+</div>
+<div id="map" STYLE="height: 600px; "></div>
 </div>
 
 

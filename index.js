@@ -6,12 +6,12 @@ const https = require('https')
 
 
 const client = new Client({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: "postgres://veygzbyrkfqcgw:1f9fde171acd359664ff1f154ae9562610a02717e2b9ca9f30f5ad690f885f10@ec2-54-195-246-55.eu-west-1.compute.amazonaws.com:5432/d1okto102vhhgg",
   ssl: {
     rejectUnauthorized: false
   }
 });
-//client.connect();
+client.connect();
 
 client.query('SELECT table_schema,table_name FROM information_schema.tables;', (err, res) => {
   if (err) throw err;
