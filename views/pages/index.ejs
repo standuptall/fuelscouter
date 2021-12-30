@@ -35,10 +35,10 @@ shadowSize: [41, 41]
         navigator.geolocation.getCurrentPosition(position=>{
             latitude = position.coords.latitude;
             longitude = position.coords.longitude;
-            raggioChanged();
             setProvinceAndRegion().then(()=>{
               loadMap();
-              reload()
+            raggioChanged();
+              reload();
             });
         });
     } else {
