@@ -96,7 +96,7 @@ shadowSize: [41, 41]
         const dataoggi = d.toISOString().substring(0,10);
         d.setDate(d.getDate() - 1);
         const dataieri = d.toISOString().substring(0,10);
-        data = data.filter(c=>c.dIns.startsWith(dataoggi) || c.dInst.startsWith(dataieri));
+        data = data.filter(c=>c.dIns.startsWith(dataoggi) || c.dIns.startsWith(dataieri));
         data = data.filter(c=>isMarkerInsideCircle(c.lat,c.lon));
         
          data =  data.sort((firstEl, secondEl) => { 
